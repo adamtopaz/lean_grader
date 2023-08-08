@@ -2,7 +2,7 @@ import «LeanGrader»
 
 open Lean Elab Command System LeanGrader 
 
-def main (args : List String) : IO Unit := do
+def main (args : List String) : IO UInt32 := do
   let some problemFile := args[0]? | throw <| .userError "Usage: grade {problemFile}.jsonl {solutionFile}.lean"
   let some solutionFile := args[1]? | throw <| .userError "Usage: grade {problemFile}.jsonl {solutionFile}.lean"
   let lines ← IO.FS.lines ⟨problemFile⟩
@@ -13,9 +13,6 @@ def main (args : List String) : IO Unit := do
   let (header, _, messages) ← Parser.parseHeader inputCtx
   let (env, _) ← processHeader header {} messages inputCtx
   let axioms : Name → (Array Name) := fun nm => (CollectAxioms.collect nm |>.run env |>.run {}).snd.axioms
-  let numProbs : Float := probs.size.toFloat
-  let mut correct : Float := 0
   for p in probs do
-    if (axioms p.name).size == 0 
-    then correct := correct + 1
-  IO.println (100 * correct / numProbs)
+    if (axioms p.name).size != 0 then return 1
+  return 0

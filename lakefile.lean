@@ -11,5 +11,6 @@ lean_lib «LeanGrader» {
 
 @[default_target]
 lean_exe «grade» {
+  supportInterpreter := true
   root := `Main
 }

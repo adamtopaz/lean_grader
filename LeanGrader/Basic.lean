@@ -7,4 +7,3 @@ elab "#type_hash" id:ident : command => do
   let env ← getEnv
   let some cinfo := env.find? id | throwError s!"{id} not found in environment."
   IO.println cinfo.type.hash
-

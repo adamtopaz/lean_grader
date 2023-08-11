@@ -25,5 +25,6 @@ unsafe def main (args : List String) : IO UInt32 := do
     return 1
   if (axioms solution.name).size != 0 then
     IO.println "Solution depends on axioms."
+    return 1
   IO.println "Solution is valid."
   return 0

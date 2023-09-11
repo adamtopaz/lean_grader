@@ -21,11 +21,9 @@ def Lean.Environment.axioms (env : Environment) (nm : Name) :
   (CollectAxioms.collect nm |>.run env |>.run {}).snd.axioms
 
 unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
-  let path : String := p.positionalArg! "input" |>.as! String
-  IO.println path
+  let path : String := p.positionalArg! "path" |>.as! String
   let path : FilePath := path
   let name : String := p.positionalArg! "name" |>.as! String
-  IO.println name
   let name : Name := .mkSimple name
   let env ← getSolutionEnv
   let some sol := env.find? `solution | 
@@ -62,7 +60,7 @@ unsafe def save := `[Cli|
   save VIA runSaveCmd;
   "Save the solution to a file."
   FLAGS:
-    c, check; "Checcks whether solution depends on axioms."
+    c, check; "Checks whether solution depends on axioms."
   ARGS:
     path : String; "Filepath to use to save solution Expr."
     name : String; "A name needed for pickle procedure."

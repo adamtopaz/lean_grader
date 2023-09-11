@@ -23,7 +23,7 @@ def Lean.Environment.axioms (env : Environment) (nm : Name) :
 unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
   let path : String := p.positionalArg! "input" |>.as! String
   let path : FilePath := path
-  let name : String := p.positionalArg! "input" |>.as! String
+  let name : String := p.positionalArg! "name" |>.as! String
   let name : Name := .mkSimple name
   let env ← getSolutionEnv
   let some sol := env.find? `solution | 
@@ -31,7 +31,6 @@ unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
   let tp := sol.type
   if p.hasFlag "check" && (env.axioms `solution).size != 0 then
     throw <| .userError "Solution depends on axioms."
-  IO.println "Saving..."
   pickle path tp name
   IO.println s!"Saved the following expression to file:
 {tp}"

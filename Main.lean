@@ -20,7 +20,7 @@ def Lean.Environment.axioms (env : Environment) (nm : Name) :
     Array Name :=  
   (CollectAxioms.collect nm |>.run env |>.run {}).snd.axioms
 
-unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
+unsafe def runSaveTypeCmd (p : Parsed) : IO UInt32 := do
   let path : String := p.positionalArg! "path" |>.as! String
   let path : FilePath := path
   let name : String := p.positionalArg! "name" |>.as! String
@@ -29,11 +29,26 @@ unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
   let some sol := env.find? `solution | 
     throw <| .userError "Solution with name `solution` not found in environment."
   let tp := sol.type
-  if p.hasFlag "check" && (env.axioms `solution).size != 0 then
-    throw <| .userError "Solution depends on axioms."
   pickle path tp name
   IO.println s!"Saved the following expression to file:
 {tp}"
+  return 0
+
+unsafe def runSaveValCmd (p : Parsed) : IO UInt32 := do
+  let path : String := p.positionalArg! "path" |>.as! String
+  let path : FilePath := path
+  let name : String := p.positionalArg! "name" |>.as! String
+  let name : Name := .mkSimple name
+  let env ← getSolutionEnv
+  if (env.axioms `solution).size != 0 then
+    throw <| .userError "Solution depends on axioms."
+  let some sol := env.find? `solution | 
+    throw <| .userError "Solution with name `solution` not found in environment."
+  let some val := sol.value? | 
+    throw <| .userError "Solution with name `solution` has no value."
+  pickle path val name
+  IO.println s!"Saved the following expression to file:
+{val}"
   return 0
 
 def Lean.Environment.compareExpr (env : Environment) (e1 e2 : Expr) : IO Bool := do
@@ -41,45 +56,50 @@ def Lean.Environment.compareExpr (env : Environment) (e1 e2 : Expr) : IO Bool :=
   ContextInfo.runMetaM
     { env := env, fileMap := default, ngen := {} } {} e
 
-unsafe def runCompareCmd (p : Parsed) : IO UInt32 := do
-  let paths : Array String := p.variableArgsAs! String
-  let paths : Array FilePath := paths.map .mk
-  let exprs ← paths.mapM fun f => unpickle Expr f
-  let exprs := exprs.toList
-  let env ← getSolutionEnv
-  let test : Bool ← show IO Bool from do 
-    match exprs with
-      | [] => return true
-      | (expr, _) :: exprs => 
-        let exprs : List Bool ← exprs.mapM fun (e, _) => 
-          env.compareExpr expr e
-        return exprs.foldl (· && ·) true
-  if !test then throw <| .userError "Comparison failed."
+unsafe def runCheckCmd (p : Parsed) : IO UInt32 := do
+  let type : String := p.positionalArg! "type" |>.as! String
+  let val : String := p.positionalArg! "value" |>.as! String
+  let (type, _) ← unpickle Expr type
+  let (val, _) ← unpickle Expr val
+  let env ← getSolutionEnv 
+  let actualType ← ContextInfo.runMetaM { env := env, fileMap := default, ngen := {} } {} 
+    (Meta.inferType val)
+  if !(← env.compareExpr type actualType) then
+    throw <| .userError "Failed!"
   IO.println "Success!"
   return 0
 
-unsafe def save := `[Cli| 
-  save VIA runSaveCmd;
-  "Save the solution to a file."
-  FLAGS:
-    c, check; "Checks whether solution depends on axioms."
+unsafe def saveType := `[Cli| 
+  save_type VIA runSaveTypeCmd;
+  "Save the solution type to a file."
   ARGS:
     path : String; "Filepath to use to save solution Expr."
     name : String; "A name needed for pickle procedure."
 ]
 
-unsafe def compare := `[Cli| 
-  compare VIA runCompareCmd;
-  "Compare two solutions from file."
+unsafe def saveVal := `[Cli| 
+  save_val VIA runSaveValCmd;
+  "Save the solution value to a file."
   ARGS:
-    ...inputs : String; "Inputs to compare."]
+    path : String; "Filepath to use to save solution Expr."
+    name : String; "A name needed for pickle procedure."
+]
+
+unsafe def check := `[Cli| 
+  check VIA runCheckCmd;
+  "Check that a value has the correct type."
+  ARGS:
+    value : String; "File containing the value expr."
+    type : String; "File containing the type expr."
+]
 
 unsafe def mainCommand := `[Cli| 
   grade NOOP; ["0.0.1"]
   "The Lean Grader CLI tool."
   SUBCOMMANDS:
-    save;
-    compare
+    saveType;
+    saveVal;
+    check
 ]
 
 unsafe def main (args : List String) : IO UInt32 :=

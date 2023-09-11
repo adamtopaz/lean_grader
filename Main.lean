@@ -1,5 +1,6 @@
-import Mathlib.Tactic
 import Cli
+import Lean
+import Std.Util.Pickle
 
 open Cli Lean System Elab Command
 

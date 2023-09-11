@@ -31,6 +31,7 @@ unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
   let tp := sol.type
   if p.hasFlag "check" && (env.axioms `solution).size != 0 then
     throw <| .userError "Solution depends on axioms."
+  IO.println "Saving..."
   pickle path tp name
   IO.println s!"Saved the following expression to file:
 {tp}"

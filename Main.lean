@@ -22,8 +22,10 @@ def Lean.Environment.axioms (env : Environment) (nm : Name) :
 
 unsafe def runSaveCmd (p : Parsed) : IO UInt32 := do
   let path : String := p.positionalArg! "input" |>.as! String
+  IO.println path
   let path : FilePath := path
   let name : String := p.positionalArg! "name" |>.as! String
+  IO.println name
   let name : Name := .mkSimple name
   let env ← getSolutionEnv
   let some sol := env.find? `solution | 

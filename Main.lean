@@ -54,7 +54,9 @@ unsafe def runCompareCmd (p : Parsed) : IO UInt32 := do
         let exprs : List Bool ← exprs.mapM fun (e, _) => 
           env.compareExpr expr e
         return exprs.foldl (· && ·) true
-  return if test then 0 else 1
+  if !test then throw <| .userError "Comparison failed."
+  IO.println "Success!"
+  return 0
 
 unsafe def save := `[Cli| 
   save VIA runSaveCmd;

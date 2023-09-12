@@ -118,6 +118,7 @@ unsafe def mainCommand := `[Cli|
   SUBCOMMANDS:
     saveType;
     saveVal;
+    saveEnv;
     check
 ]
 

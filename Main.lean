@@ -16,15 +16,6 @@ unsafe def getSolutionEnv : IO Environment := do
   let frontEndState ← IO.processCommands inputCtx parserState cmdState
   return frontEndState.commandState.env
 
-unsafe def runSaveEnvCmd (p : Parsed) : IO UInt32 := do
-  let path : String := p.positionalArg! "path" |>.as! String
-  let path : FilePath := path
-  let name : String := p.positionalArg! "name" |>.as! String
-  let name : Name := .mkSimple name
-  let env ← getSolutionEnv 
-  pickle path env name
-  return 0
-
 def Lean.Environment.axioms (env : Environment) (nm : Name) : 
     Array Name :=  
   (CollectAxioms.collect nm |>.run env |>.run {}).snd.axioms
@@ -66,26 +57,17 @@ def Lean.Environment.compareExpr (env : Environment) (e1 e2 : Expr) : IO Bool :=
     { env := env, fileMap := default, ngen := {} } {} e
 
 unsafe def runCheckCmd (p : Parsed) : IO UInt32 := do
-  let env : String := p.positionalArg! "env" |>.as! String
   let type : String := p.positionalArg! "type" |>.as! String
   let val : String := p.positionalArg! "value" |>.as! String
-  let (env, _) ← unpickle Environment env 
   let (type, _) ← unpickle Expr type
   let (val, _) ← unpickle Expr val
+  let env ← getSolutionEnv 
   let actualType ← ContextInfo.runMetaM { env := env, fileMap := default, ngen := {} } {} 
     (Meta.inferType val)
   if !(← env.compareExpr type actualType) then
     throw <| .userError "Failed!"
   IO.println "Success!"
   return 0
-
-unsafe def saveEnv := `[Cli|
-  save_env VIA runSaveEnvCmd;
-  "Save the current solution environment to a file."
-  ARGS:
-    path : String; "Filepath to use to save solution Expr."
-    name : String; "A name needed for pickle procedure."
-]
 
 unsafe def saveType := `[Cli| 
   save_type VIA runSaveTypeCmd;
@@ -107,7 +89,6 @@ unsafe def check := `[Cli|
   check VIA runCheckCmd;
   "Check that a value has the correct type."
   ARGS:
-    env : String; "File containing the environment."
     value : String; "File containing the value expr."
     type : String; "File containing the type expr."
 ]
@@ -118,7 +99,6 @@ unsafe def mainCommand := `[Cli|
   SUBCOMMANDS:
     saveType;
     saveVal;
-    saveEnv;
     check
 ]
 

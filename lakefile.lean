@@ -15,5 +15,5 @@ require mathlib from git
 @[default_target]
 lean_exe «grade» {
   supportInterpreter := true
-  root := `Main
+  root := `LeanGrader
 }

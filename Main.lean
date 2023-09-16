@@ -1,10 +1,11 @@
-import Cli
 import Lean
-import Std.Util.Pickle
 
-open Cli Lean System Elab Command
+open Lean Elab Command System  
 
-unsafe def getSolutionEnv : IO Environment := do
+unsafe def main (args : List String) : IO UInt32 := do
+  let some hash := args[0]? | throw <| .userError "Usage: lake exe grade {hash}"
+  let some hash := hash.toNat? | throw <| .userError s!"Failed to parse hash {hash}"
+  let hash : UInt64 := hash.toUInt64
   let solutionFile : FilePath := "Solution.lean"
   let solutionContents ← IO.FS.readFile solutionFile
   let inputCtx := Parser.mkInputContext solutionContents "<input>"
@@ -14,93 +15,22 @@ unsafe def getSolutionEnv : IO Environment := do
   let (env, messages) ← processHeader header {} messages inputCtx
   let cmdState : Command.State := Command.mkState env messages {}
   let frontEndState ← IO.processCommands inputCtx parserState cmdState
-  return frontEndState.commandState.env
-
-def Lean.Environment.axioms (env : Environment) (nm : Name) : 
-    Array Name :=  
-  (CollectAxioms.collect nm |>.run env |>.run {}).snd.axioms
-
-unsafe def runSaveTypeCmd (p : Parsed) : IO UInt32 := do
-  let path : String := p.positionalArg! "path" |>.as! String
-  let path : FilePath := path
-  let name : String := p.positionalArg! "name" |>.as! String
-  let name : Name := .mkSimple name
-  let env ← getSolutionEnv
-  let some sol := env.find? `solution | 
-    throw <| .userError "Solution with name `solution` not found in environment."
-  let tp := sol.type
-  pickle path tp name
-  IO.println s!"Saved the following expression to file:
-{tp}"
+  let env := frontEndState.commandState.env
+  let axioms : Name → (Array Name) := fun nm => (CollectAxioms.collect nm |>.run env |>.run {}).snd.axioms
+  let some solution := env.find? `solution | 
+    IO.println "Solution not found in environment."
+    return 1
+  if solution.type.hash != hash then
+    IO.println "Solution has wrong type."
+    return 1
+  if (axioms solution.name).size != 0 then
+    IO.println "Solution depends on axioms."
+    return 1
+  IO.println "Solution is valid."
   return 0
 
-unsafe def runSaveValCmd (p : Parsed) : IO UInt32 := do
-  let path : String := p.positionalArg! "path" |>.as! String
-  let path : FilePath := path
-  let name : String := p.positionalArg! "name" |>.as! String
-  let name : Name := .mkSimple name
-  let env ← getSolutionEnv
-  if (env.axioms `solution).size != 0 then
-    throw <| .userError "Solution depends on axioms."
-  let some sol := env.find? `solution | 
-    throw <| .userError "Solution with name `solution` not found in environment."
-  let some val := sol.value? | 
-    throw <| .userError "Solution with name `solution` has no value."
-  pickle path val name
-  IO.println s!"Saved the following expression to file:
-{val}"
-  return 0
-
-def Lean.Environment.compareExpr (env : Environment) (e1 e2 : Expr) : IO Bool := do
-  let e := Meta.isDefEq e1 e2
-  ContextInfo.runMetaM
-    { env := env, fileMap := default, ngen := {} } {} e
-
-unsafe def runCheckCmd (p : Parsed) : IO UInt32 := do
-  let type : String := p.positionalArg! "type" |>.as! String
-  let val : String := p.positionalArg! "value" |>.as! String
-  let (type, _) ← unpickle Expr type
-  let (val, _) ← unpickle Expr val
-  let env ← getSolutionEnv 
-  let actualType ← ContextInfo.runMetaM { env := env, fileMap := default, ngen := {} } {} 
-    (Meta.inferType val)
-  if !(← env.compareExpr type actualType) then
-    throw <| .userError "Failed!"
-  IO.println "Success!"
-  return 0
-
-unsafe def saveType := `[Cli| 
-  save_type VIA runSaveTypeCmd;
-  "Save the solution type to a file."
-  ARGS:
-    path : String; "Filepath to use to save solution Expr."
-    name : String; "A name needed for pickle procedure."
-]
-
-unsafe def saveVal := `[Cli| 
-  save_val VIA runSaveValCmd;
-  "Save the solution value to a file."
-  ARGS:
-    path : String; "Filepath to use to save solution Expr."
-    name : String; "A name needed for pickle procedure."
-]
-
-unsafe def check := `[Cli| 
-  check VIA runCheckCmd;
-  "Check that a value has the correct type."
-  ARGS:
-    value : String; "File containing the value expr."
-    type : String; "File containing the type expr."
-]
-
-unsafe def mainCommand := `[Cli| 
-  grade NOOP; ["0.0.1"]
-  "The Lean Grader CLI tool."
-  SUBCOMMANDS:
-    saveType;
-    saveVal;
-    check
-]
-
-unsafe def main (args : List String) : IO UInt32 :=
-  mainCommand.validate args
+elab "#type_hash" id:ident : command => do
+  let id ← resolveGlobalConstNoOverload id
+  let env ← getEnv
+  let some cinfo := env.find? id | throwError s!"{id} not found in environment."
+  IO.println cinfo.type.hash
